@@ -1,0 +1,82 @@
+接入层交换机配置
+接入层交换机的端口要有两种配置，与主机相连的端口配置access协议并把对应的VLAN划入端口，与分布层交换机相连的端口配置trunk协议。部分程序如下：
+Switch>en
+Switch#conf t
+Switch(config)#hostname jiao
+jiao(config)#vlan 3 //创建vlan 3
+jiao(config-vlan)#exit
+jiao(config)#int f0/1 //将f0/1添加到vlan 3中
+jiao(config-if)#switchport mode access 
+jiao(config-if)#switchport access vlan 3
+jiao(config-if)#exit
+jiao(config)#int g1/1 //将g1/1端口设置为Trunk模式
+jiao(config-if)#switchport mode trunk
+
+汇聚层交换机
+汇聚层交换机的端口配置trunk协议，包含本段的VLAN。部分程序如下：
+su1(config)#int f0/1 //将f0/1端口设置为Trunk模式
+su1(config-if)#switchport trunk encapsulation dot1q 
+su1(config-if)#switchport mode trunk
+
+核心层交换机的部分配置
+hexin(config)#int vlan 1 //给vlan 1添加一个IP地址，用于不同网段之间相互访问
+hexin(config-if)#ip add 192.168.1.1 255.255.255.0
+hexin(config-if)#no shutdown 
+hexin(config-if)#exit
+hexin(config)#int vlan 2 //给vlan 2添加一个IP地址，用于不同网段之间相互访问
+hexin(config-if)#ip add 192.168.2.1 255.255.255.0
+hexin(config-if)#no shutdown 
+hexin(config-if)#exit
+
+核心交换机部分配置DHCP实现自动分配IP地址 
+hexin(config)#ip dhcp pool vlan1 //定义地址池vlan1
+hexin(dhcp-config)#network 192.168.1.0 255.255.255.0 //地址池网络范围
+hexin(dhcp-config)#default-router 192.168.1.1 //配置网关
+hexin(dhcp-config)#exit
+hexin(config)#ip dhcp excluded-address 192.168.1.1 
+
+交换机的路由配置
+hexin#conf t
+hexin(config)#inter f0/24
+hexin(config-if)#no switchport //关闭二层端口，才可以配置IP地址
+hexin(config-if)#ip add 192.168.10.1 255.255.255.0 //是三层端口
+hexin(config-if)#no shutdown 
+hexin(config-if)#exit
+hexin(config)#ip routing //开启路由功能，否则不能使用路由协议
+hexin(config)#router rip //开启RIP
+hexin(config-router)#ver 2 //使用RIP v2
+hexin(config-router)#no auto-summary //关闭路由信息的自动汇总功能
+hexin(config-router)#net 192.168.1.0 //申明三层交换机的直连网段
+hexin(config-router)#net 192.168.2.0
+hexin(config-router)#exit
+路由器路由部分配置
+luyou(config)#router rip
+luyou(config-router)#ver 2
+luyou(config-router)#no auto-summary 
+luyou(config-router)#net 192.168.10.0
+luyou(config-router)#default-information originate //给路由器分配一条默认路由
+luyou(config-router)#exit
+luyou(config)#end
+
+NAT部分配置
+luyou(config)#access-list 1 permit 192.168.1.0 0.0.0.255 //允许网络上的主机经行访问
+luyou(config)#access-list 1 permit 192.168.2.0 0.0.0.255
+luyou(config)#ip nat inside source list 1 interface s0/0 overload 
+luyou(config)#int s0/0 //接口动态NAPT的配置
+luyou(config-if)#ip nat outside //定义网络外部接口
+luyou(config-if)#exit
+luyou(config)#int f0/1
+luyou(config-if)#ip nat inside //定义网络内部接口
+luyou(config-if)#exit
+luyou(config)#ip route 0.0.0.0 0.0.0.0 s0/0 //默认路由指向s0/0/0
+luyou(config)#
+
+公网路由器配置
+Router(config)#hostname luyou2
+luyou2(config)#int s0/0
+luyou2(config-if)#ip add 202.1.1.2 255.255.255.0
+luyou2(config-if)#no shutdown 
+luyou2(config-if)#exit
+luyou2(config)#int f0/1
+luyou2(config-if)#ip add 202.1.2.1 255.255.255.0
+luyou2(config-if)#no shutdown 
